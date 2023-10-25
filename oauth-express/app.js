@@ -8,7 +8,7 @@ require('dotenv').config();
  */
 var express = require('express');
 var app = express();
-var path = require('path');
+// var path = require('path');
 var OAuthClient = require('intuit-oauth');
 var bodyParser = require('body-parser');
 const cors = require('cors');
@@ -29,8 +29,11 @@ var urlencodedParser = bodyParser.urlencoded({ extended: false });
  * App Variables
  * @type {null}
  */
-var oauth2_token_json = null,
-    redirectUri = '';
+
+var oauthClient = '';
+var oauth2_token_json = '';
+var redirectUri = '';
+var companyDataResponse = '';
 
 
 /**
@@ -47,46 +50,49 @@ var oauthClient = null;
 
 app.options('/authUri', cors());
 
-// app.post('/authUri', urlencodedParser, function(req,res) {
+app.post('/authUri', urlencodedParser, function(req,res) {
 
-//     console.log('Received POST request');
-//     console.log('Request body:', req.body)
-
-//     oauthClient = new OAuthClient({
-//         clientId: req.query.json.clientId,
-//         clientSecret: req.query.json.clientSecret,
-//         environment: req.query.json.environment,
-//         redirectUri: req.query.json.redirectUri
-//     });
-
-//     var authUri = oauthClient.authorizeUri({scope:[OAuthClient.scopes.Accounting],state:'intuit-test'});
-
-//     res.send(authUri);
-// });
-
-app.post('/authUri', urlencodedParser, function(req, res) {
     console.log('Received POST request');
-    console.log('Request body:', req.body);
-  
-    // Extract client ID, client secret, environment, and redirect URI from the request body
-    const { clientId, clientSecret, environment, redirectUri } = req.body;
-  
-    // Define the query parameters for the authorization URL
-    const queryParams = {
-      client_id: clientId,
-      response_type: 'code',
-      scope: 'com.intuit.quickbooks.accounting',
-      redirect_uri: redirectUri,
-      state: 'security_token=138r5719ru3e1&url=' + encodeURIComponent(redirectUri),
-    };
-  
-    // Generate the authorization URL by appending the query parameters
-    var authUri = 'https://appcenter.intuit.com/connect/oauth2?' + Object.entries(queryParams)
-      .map(([key, value]) => `${key}=${value}`)
-      .join('&');
-  
+    // console.log('Request body:', req.body)
+
+    // console.log(req.body.clientId)
+    oauthClient = new OAuthClient({
+        clientId: req.body.clientId,
+        clientSecret: req.body.clientSecret,
+        environment: req.body.environment,
+        redirectUri: req.body.redirectUri
+    });
+
+    // console.log(oauthClient);
+    var authUri = oauthClient.authorizeUri({scope:[OAuthClient.scopes.Accounting],state:'intuit-test'});
+
     res.send(authUri);
-  });
+    console.log(authUri);
+});
+
+// app.post('/authUri', urlencodedParser, function(req, res) {
+//     console.log('Received POST request');
+//     console.log('Request body:', req.body);
+  
+//     // Extract client ID, client secret, environment, and redirect URI from the request body
+//     const { clientId, clientSecret, environment, redirectUri } = req.body;
+  
+//     // Define the query parameters for the authorization URL
+//     const queryParams = {
+//       client_id: clientId,
+//       response_type: 'code',
+//       scope: 'com.intuit.quickbooks.accounting',
+//       redirect_uri: redirectUri,
+//       state: 'security_token=138r5719ru3e1&url=' + encodeURIComponent(redirectUri),
+//     };
+  
+//     // Generate the authorization URL by appending the query parameters
+//     var authUri = 'https://appcenter.intuit.com/connect/oauth2?' + Object.entries(queryParams)
+//       .map(([key, value]) => `${key}=${value}`)
+//       .join('&');
+  
+//     res.send(authUri);
+//   });
   
   
 
@@ -96,9 +102,13 @@ app.post('/authUri', urlencodedParser, function(req, res) {
 
 app.get('/callback', function(req, res) {
 
-    oauthClient.createToken(req.url)
+    // console.log(oauthClient, 'OAuthClient!')
+    // console.log('Hi!')
+    // console.log(res.req.url, 'Response')
+    oauthClient.createToken(res.req.url)
        .then(function(authResponse) {
-             oauth2_token_json = JSON.stringify(authResponse.getJson(), null, 2);
+        oauth2_token_json = JSON.stringify(authResponse.getJson(), null, 2);
+        // console.log(oauth2_token_json)
          })
         .catch(function(e) {
              console.error(e);
@@ -152,7 +162,7 @@ app.get('/callback', function(req, res) {
  * Display the token : CAUTION : JUST for sample purposes
  */
 app.get('/retrieveToken', function(req, res) {
-    res.send(oauth2TokenObject);
+    res.send(oauth2_token_json);
 });
 
 
@@ -177,22 +187,44 @@ app.get('/refreshAccessToken', function(req,res){
 /**
  * getCompanyInfo ()
  */
-app.get('/getCompanyInfo', function(req,res){
+app.get('/getCompanyInfo', async function (req, res) {
+    try {
+        const companyID = oauthClient.getToken().realmId;
+        const url = oauthClient.environment === 'sandbox' ? OAuthClient.environment.sandbox : OAuthClient.environment.production;
 
+        const authResponse = await oauthClient.makeApiCall({ url: `${url}v3/company/${companyID}/companyinfo/${companyID}` });
 
-    var companyID = oauthClient.getToken().realmId;
-
-    var url = oauthClient.environment == 'sandbox' ? OAuthClient.environment.sandbox : OAuthClient.environment.production ;
-
-    oauthClient.makeApiCall({url: url + 'v3/company/' + companyID +'/companyinfo/' + companyID})
-        .then(function(authResponse){
-            console.log("The response for API call is :"+JSON.stringify(authResponse));
-            res.send(JSON.parse(authResponse.text()));
-        })
-        .catch(function(e) {
-            console.error(e);
-        });
+        //  console.log(authResponse.body, 'Response')
+        // console.log("The response for API call is: " + JSON.stringify(authResponse));
+        companyDataResponse = JSON.stringify(authResponse.getJson(), null, 2);
+        console.log("The response for API call is: " + companyDataResponse)
+        res.send(companyDataResponse);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'An error occurred while fetching company information.' });
+    }
 });
+
+/**
+ * createInvoice ()
+ */
+app.post('/createInvoice', async (req, res) => {
+    try {
+        // Extract invoice data from the request body
+        const invoiceData = req.body;
+    
+        // Use the QuickBooks SDK or API to create the invoice
+        const createdInvoice = await quickbooks.createInvoice(invoiceData);
+        console.log(createdInvoice)
+        
+        // Return the created invoice data as a response
+        res.json(createdInvoice);
+    } catch (error) {
+        console.error('Error creating invoice:', error);
+        res.status(500).json({ error: 'An error occurred while creating the invoice.' });
+    }
+  });
+  
 
 
 /**
