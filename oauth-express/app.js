@@ -34,7 +34,8 @@ var oauthClient = '';
 var oauth2_token_json = '';
 var redirectUri = '';
 var companyDataResponse = '';
-
+var employeeDataResponse = '';
+// var authResponse = {};
 
 /**
  * Instantiate new Client
@@ -67,7 +68,7 @@ app.post('/authUri', urlencodedParser, function(req,res) {
     var authUri = oauthClient.authorizeUri({scope:[OAuthClient.scopes.Accounting],state:'intuit-test'});
 
     res.send(authUri);
-    console.log(authUri);
+    // console.log(authUri);
 });
 
 // app.post('/authUri', urlencodedParser, function(req, res) {
@@ -205,27 +206,81 @@ app.get('/getCompanyInfo', async function (req, res) {
     }
 });
 
-/**
- * createInvoice ()
- */
-app.post('/createInvoice', async (req, res) => {
-    try {
-        // Extract invoice data from the request body
-        const invoiceData = req.body;
-    
-        // Use the QuickBooks SDK or API to create the invoice
-        const createdInvoice = await quickbooks.createInvoice(invoiceData);
-        console.log(createdInvoice)
-        
-        // Return the created invoice data as a response
-        res.json(createdInvoice);
-    } catch (error) {
-        console.error('Error creating invoice:', error);
-        res.status(500).json({ error: 'An error occurred while creating the invoice.' });
-    }
-  });
-  
+// app.get('/getEmployee', function (req, res) {
 
+//     console.log('Received GET request')
+//     const companyID = oauthClient.getToken().realmId;
+//     const employeeID = oauthClient.getToken().employeeID;
+//     const url = oauthClient.environment === 'sandbox' ? OAuthClient.environment.sandbox : OAuthClient.environment.production;
+//     oauthClient.makeApiCall({ url: `${url}v3/company/${companyID}/employee/${employeeID}` })
+//     .then(function (data) {
+//     console.log("The response for API call is :" + JSON.stringify(data));
+//     res.send(JSON.parse(data.text()));
+//     })
+//     .catch(function (e) {
+//     console.error(e);
+//     });
+//     });
+
+app.get('/getEmployee', async function (req, res) {
+
+    console.log('Received GET request')
+
+    try {
+        const companyID = oauthClient.getToken().realmId;
+        // const employeeID = oauthClient.getToken().employeeID;
+        // console.log(employeeID)
+        const url = oauthClient.environment === 'sandbox' ? OAuthClient.environment.sandbox : OAuthClient.environment.production;
+
+        const authResponse = await oauthClient.makeApiCall({ url: `${url}v3/company/${companyID}/query?query=select * from Employee where DisplayName = 'Emily Platt'` });
+
+        //  console.log(authResponse.body, 'Response')
+        // console.log("The response for API call is: " + JSON.stringify(authResponse));
+        employeeDataResponse = JSON.stringify(authResponse.getJson(), null, 2);
+        console.log("The response for API call is: " + employeeDataResponse)
+        res.send(employeeDataResponse);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'An error occurred while fetching employee information.' });
+    }
+});
+
+app.post('/createEmployee', async function (req, res) {
+
+    console.log('Received GET request')
+    try {
+        // Extract the employee data from the request body
+        const employeeData = req.body;
+        console.log('Employee data: ', JSON.stringify(employeeData))
+        
+        const companyID = oauthClient.getToken().realmId;
+        const url = oauthClient.environment === 'sandbox' ? OAuthClient.environment.sandbox : OAuthClient.environment.production;
+
+        // console.log(oauthClient ,"This is authclient ")
+       
+        // Make the API call to create the invoice
+        const authResponse = await oauthClient.makeApiCall({
+            url: `${url}v3/company/${companyID}/employee`,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(employeeData),
+        });
+
+
+        // console.log("The response for API call is :" + authResponse);
+        // Log the response for debugging purposes
+        const employeeResponse = JSON.stringify(authResponse, null, 2);
+        // console.log("Employee created:", employeeResponse);
+
+        // Send the created invoice data as a response
+        res.json(employeeResponse);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'An error occurred while creating the employee.' });
+    }
+});
 
 /**
  * Start server on HTTP

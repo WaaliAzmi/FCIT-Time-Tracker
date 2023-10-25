@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-
+import axios from 'axios'
 function OAuth2Integration() {
   const [accessToken, setAccessToken] = useState('');
   const [clientId, setClientId] = useState(''); // Initialize with your client ID
@@ -11,14 +11,8 @@ function OAuth2Integration() {
   const [companyInfo, setCompanyInfo] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // For invoice
-  const [customerRef, setCustomerRef] = useState(''); // Set this to the customer reference
-  const [lineItems, setLineItems] = useState([]); // An array of line items
-  const [newLineItem, setNewLineItem] = useState({
-    description: '',
-    quantity: 1,
-    rate: 0,
-  });
+// For employee
+const [employeeInfo, setEmployeeInfo] = useState([]);
 
   const handleConnectToQuickBooks = () => {
     // Fetch the authorization URL from your Express backend
@@ -104,57 +98,58 @@ function OAuth2Integration() {
     });
   };
 
-  const handleAddLineItem = () => {
-    // Add the new line item to the lineItems array
-    setLineItems([...lineItems, newLineItem]);
-    // Clear the newLineItem state for the next entry
-    setNewLineItem({
-      description: '',
-      quantity: 1,
-      rate: 0,
-    });
-  };
-
-  const handleRemoveLineItem = (index) => {
-    // Remove a line item by its index
-    const updatedLineItems = [...lineItems];
-    updatedLineItems.splice(index, 1);
-    setLineItems(updatedLineItems);
-  };
-
-  const handleCreateInvoice = () => {
-    // Construct the invoice data with customer reference and line items
-    const invoiceData = {
-      CustomerRef: {
-        value: customerRef, // Customer reference ID
-        name: 'Customer Name', // Customer name
+  const createEmployee = () => {
+    // Define the employee data
+    const employeeData = {
+      "GivenName": "Abc",
+      "SSN": "444-55-6666",
+      "PrimaryAddr": {
+        "CountrySubDivisionCode": "CA",
+        "City": "Middlefield",
+        "PostalCode": "93242",
+        "Id": "50",
+        "Line1": "45 N. Elm Street"
       },
-      Line: lineItems, // Array of line items
-      CurrencyRef: {
-        value: 'USD', // Currency code
+      "PrimaryPhone": {
+        "FreeFormNumber": "408-525-1234"
       },
-      // Add other fields as needed
+      "FamilyName": "Xyz"
     };
-
-    // Log the invoice data before sending it to the server
-    console.log('Invoice Data:', invoiceData);
-
-    // Send a POST request to the server to create the invoice
-    fetch('/createInvoice', {
+  
+    // Send a POST request to the server to create the employee
+    fetch('http://localhost:8000/createEmployee', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(invoiceData),
+      body: JSON.stringify(employeeData), // Send the corrected employeeData as JSON
     })
       .then((response) => response.json())
-      .then((createdInvoice) => {
-        console.log('Invoice created:', createdInvoice);
-        // Handle the created invoice on the client-side as needed
+      .then((createdEmployee) => {
+        console.log('Employee created:', createdEmployee);
+        // Handle the created employee on the client-side as needed
       })
       .catch((error) => {
-        console.error('Error creating invoice:', error);
+        console.error('Error creating employee:', error);
       });
+  };
+  
+  const fetchEmployee = async() => {
+    // Set loading to true while fetching data
+    setLoading(true);
+    try {
+      
+      let resp = await axios.get('http://localhost:8000/getEmployee')
+      setEmployeeInfo(resp?.data?.QueryResponse?.Employee)
+      console.log(resp.data.QueryResponse.Employee)
+      console.log(employeeInfo)
+      setLoading(false)
+
+    } catch (error) {
+      console.error('Error:', error);
+      // Mark loading as false even in case of an error
+      setLoading(false);
+    }
   };
 
   return (
@@ -208,52 +203,19 @@ function OAuth2Integration() {
         )}
       </div>
       <hr/>
-      <div>
-      <h1>Create Invoice</h1>
-      <label>
-        Customer Reference:
-        <input
-          type="text"
-          value={customerRef}
-          onChange={(e) => setCustomerRef(e.target.value)}
-        />
-      </label>
-      <div>
-        <h3>Line Items</h3>
-        {lineItems.map((item, index) => (
-          <div key={index}>
-            <p>{item.description} - Quantity: {item.quantity} - Rate: ${item.rate}</p>
-            <button onClick={() => handleRemoveLineItem(index)}>Remove</button>
-          </div>
-        ))}
-        <label>
-          Description:
-          <input
-            type="text"
-            value={newLineItem.description}
-            onChange={(e) => setNewLineItem({ ...newLineItem, description: e.target.value })}
-          />
-        </label>
-        <label>
-          Quantity:
-          <input
-            type="number"
-            value={newLineItem.quantity}
-            onChange={(e) => setNewLineItem({ ...newLineItem, quantity: parseInt(e.target.value) })}
-          />
-        </label>
-        <label>
-          Rate:
-          <input
-            type="number"
-            value={newLineItem.rate}
-            onChange={(e) => setNewLineItem({ ...newLineItem, rate: parseFloat(e.target.value) })}
-          />
-        </label>
-        <button onClick={handleAddLineItem}>Add Line Item</button>
+    <hr/>
+    <button onClick={createEmployee}>Create Employee</button>
+    <div>
+        <h1>Employee Information</h1>
+        <button onClick={fetchEmployee}>Fetch Employee Info</button>
+        {loading ? (
+          <p>Loading employee information...</p>
+        ) : (
+          <pre>Employee Info: {employeeInfo.map((data)=>{
+           return <pre>{JSON.stringify(data)}</pre>
+          })} </pre>
+        )}
       </div>
-      <button onClick={handleCreateInvoice}>Create Invoice</button>
-    </div>
     </div>
     
   );
